@@ -3,10 +3,12 @@ type LinearListCanShowQuery<T> = () => Promise<T[]>;
 type UniqueKey = string | number;
 
 type GetRequiredQueryFun = ({
-  unReadyItemUids,
+  unReadyKeys,
 }: {
-  unReadyItemUids: UniqueKey[];
+  unReadyKeys: UniqueKey[];
 }) => Promise<void>;
+
+type GetUid<T> = (item: T) => UniqueKey;
 
 class ReadyListController<T> {
   linearListCanShowQueryIndex: number = -1;
@@ -15,16 +17,26 @@ class ReadyListController<T> {
 
   readyUidSet: Set<UniqueKey> = new Set<UniqueKey>();
 
-  getUid: (item: T) => UniqueKey;
+  getUid: GetUid<T>;
 
   getRequiredQueryFun: GetRequiredQueryFun;
 
-  constructor({ getUid, getRequiredQueryFun }) {
+  constructor({
+    getUid,
+    getRequiredQueryFun,
+  }: {
+    getUid: GetUid<T>;
+    getRequiredQueryFun: GetRequiredQueryFun;
+  }) {
     this.getUid = getUid;
     this.getRequiredQueryFun = getRequiredQueryFun;
   }
 
-  initialOrReset = ({ linearListCanShowQueryList }) => {
+  initialOrReset = ({
+    linearListCanShowQueryList,
+  }: {
+    linearListCanShowQueryList: LinearListCanShowQuery<T>[];
+  }) => {
     this.linearListCanShowQueryList = linearListCanShowQueryList;
     this.linearListCanShowQueryIndex = 0;
     this.readyUidSet = new Set();
@@ -60,13 +72,13 @@ class ReadyListController<T> {
     if (!uidList) {
       return [];
     }
-    const unReadyItems = [];
+    const unReadyKeys: UniqueKey[] = [];
     uidList.forEach(uid => {
       if (!this.readyUidSet.has(uid)) {
-        unReadyItems.push(uid);
+        unReadyKeys.push(uid);
       }
     });
-    return unReadyItems;
+    return unReadyKeys;
   };
 
   loadRequireInfoForItems = ({
@@ -78,16 +90,16 @@ class ReadyListController<T> {
       return Promise.resolve();
     }
 
-    const unReadyItemUids = this.getUnReadyUids({ uidList });
+    const unReadyKeys = this.getUnReadyUids({ uidList });
 
-    if (!unReadyItemUids.length) {
+    if (!unReadyKeys.length) {
       return Promise.resolve();
     }
 
     return this.getRequiredQueryFun({
-      unReadyItemUids,
+      unReadyKeys,
     }).then(() => {
-      unReadyItemUids.forEach(item => {
+      unReadyKeys.forEach(item => {
         this.readyUidSet.add(item);
       });
     });
