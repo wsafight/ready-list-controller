@@ -1,4 +1,4 @@
-type LinearListCanShowQuery<T> = () => Promise<T[]>;
+type LinearListQueryList<T> = () => Promise<T[]>;
 
 type UniqueKey = string | number;
 
@@ -11,9 +11,9 @@ type GetRequiredQueryFun = ({
 type GetUid<T> = (item: T) => UniqueKey;
 
 class ReadyListController<T> {
-  linearListCanShowQueryIndex: number = -1;
+  linearListReadyStatus: boolean[] = [];
 
-  linearListCanShowQueryList: LinearListCanShowQuery<T>[] = [];
+  linearListQueryList: LinearListQueryList<T>[] = [];
 
   readyUidSet: Set<UniqueKey> = new Set<UniqueKey>();
 
@@ -33,30 +33,37 @@ class ReadyListController<T> {
   }
 
   initialOrReset = ({
-    linearListCanShowQueryList,
+    linearListQueryList,
   }: {
-    linearListCanShowQueryList: LinearListCanShowQuery<T>[];
+    linearListQueryList: LinearListQueryList<T>[];
   }) => {
-    this.linearListCanShowQueryList = linearListCanShowQueryList;
-    this.linearListCanShowQueryIndex = 0;
+    this.initialQueryList(linearListQueryList);
     this.readyUidSet = new Set();
   };
 
   get isLoadDone(): boolean {
-    return (
-      this.linearListCanShowQueryIndex ===
-      this.linearListCanShowQueryList.length
-    );
+    return this.linearListReadyStatus.every(item => item);
   }
 
-  loadLinearList() {
-    if (this.isLoadDone) {
-      return Promise.resolve();
+  loadLinearList = (index: number): Promise<T[]> => {
+    if (typeof index !== 'number') {
+      return Promise.reject(new Error('index must be a number'));
     }
 
-    return this.linearListCanShowQueryList[
-      this.linearListCanShowQueryIndex++
-    ]().then(res => {
+    if (Number.isNaN(index)) {
+      return Promise.reject(new Error('index must not be NaN'));
+    }
+
+    if (index < 0 || index >= this.linearListQueryList.length) {
+      return Promise.reject(new Error('index must be within range'));
+    }
+
+    if (this.linearListReadyStatus[index]) {
+      return Promise.resolve([]);
+    }
+
+    return this.linearListQueryList[index]().then(res => {
+      this.linearListReadyStatus[index] = true;
       const fixedRes = Array.isArray(res) ? res : [res];
       if (fixedRes.length) {
         fixedRes.forEach(item => {
@@ -64,14 +71,16 @@ class ReadyListController<T> {
           this.readyUidSet.add(uid);
         });
       }
+
       return res;
     });
-  }
+  };
 
   getUnReadyUids = ({ uidList }: { uidList: UniqueKey[] }): UniqueKey[] => {
     if (!uidList) {
       return [];
     }
+
     const unReadyKeys: UniqueKey[] = [];
     uidList.forEach(uid => {
       if (!this.readyUidSet.has(uid)) {
@@ -103,6 +112,15 @@ class ReadyListController<T> {
         this.readyUidSet.add(item);
       });
     });
+  };
+
+  private initialQueryList = (
+    linearListQueryList: LinearListQueryList<T>[],
+  ) => {
+    this.linearListQueryList = linearListQueryList;
+    const queryCount = linearListQueryList.length;
+    this.linearListReadyStatus = new Array(queryCount);
+    this.linearListReadyStatus.fill(false);
   };
 }
 
